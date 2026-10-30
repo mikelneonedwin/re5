@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Download Rescue & Queue Manager",
+  "name": "re5",
   "version": "1.0.0",
   "description": "Monitors network-interrupted downloads and automatically rescues them while preserving a target active download threshold.",
   "permissions": [
@@ -10,7 +10,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Download Rescue Manager"
+    "default_title": "re5"
   },
   "background": {
     "service_worker": "background.js"

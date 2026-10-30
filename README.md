@@ -1,4 +1,4 @@
-# Download Rescue & Queue Manager
+# re5
 
 A Chromium browser extension that monitors download queues and automatically rescues downloads interrupted by network drops while enforcing a controlled concurrency threshold.
 
