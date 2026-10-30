@@ -8,7 +8,7 @@ A Chromium browser extension that monitors download queues and automatically res
 - **40-Second Periodic Backup**: Registers a `chrome.alarms` periodic check every 40 seconds (`40 / 60` minutes) to catch any edge cases or missed wakeups comfortably beyond Chromium's 30-second throttling clamp.
 - **Always-On Efficiency**: Runs automatically in the background by default while sleeping whenever no download events are active. It consumes negligible CPU and memory.
 - **Rapid Retry Prevention**: Features a 5-second per-item debounce cooldown so sustained internet outages cannot trigger a runaway CPU loop.
-- **Network Error Coverage**: Handles all connection-related failure modes (`NETWORK_FAILED`, `NETWORK_TIMEOUT`, `NETWORK_DISCONNECTED`, `NETWORK_SERVER_DOWN`), matching both "Failed - Network error" and "Failed - Network disconnected" in the browser UI, while ignoring user cancellations, forbidden errors, and server 404s.
+- **Clear Completed from History**: Optional toggle (off by default) that removes finished download records from `helium://downloads/` via `chrome.downloads.erase({ id })` immediately upon completion, leaving the downloaded file intact on your disk without cluttering the browser history.
 - **On-Demand Activation**: Controlled via a toggle in the extension popup. When toggled on, it marks the session start time so it only rescues current batch downloads rather than historical failures from days prior.
 
 ## Installation

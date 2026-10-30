@@ -17,6 +17,7 @@ let isReconciling = false;
 async function getSettings() {
   const data = await chrome.storage.local.get({
     monitoringEnabled: true,
+    clearCompletedHistory: false,
     targetConcurrency: TARGET_CONCURRENCY
   });
   return data;
@@ -25,15 +26,50 @@ async function getSettings() {
 function updateBadge(enabled, activeCount = 0, queuedCount = 0) {
   if (!enabled) {
     chrome.action.setBadgeText({ text: 'OFF' });
-    chrome.action.setBadgeBackgroundColor({ color: '#777777' });
+    chrome.action.setBadgeBackgroundColor({ color: '#64748B' });
+    chrome.action.setTitle({ title: 're5: Monitoring paused' });
     return;
   }
-  const badgeText = queuedCount > 0 ? `${activeCount}/${queuedCount}` : `${activeCount}`;
+
+  let badgeText = '';
+  if (activeCount > 0) {
+    badgeText = String(activeCount);
+  } else if (queuedCount > 0) {
+    badgeText = queuedCount > 99 ? '99+' : `!${queuedCount}`;
+  }
+
   chrome.action.setBadgeText({ text: badgeText });
-  chrome.action.setBadgeBackgroundColor({ color: '#2563EB' });
+  chrome.action.setBadgeBackgroundColor({
+    color: activeCount > 0 ? '#2563EB' : (queuedCount > 0 ? '#E11D48' : '#10B981')
+  });
+  chrome.action.setTitle({
+    title: `re5: ${activeCount} active, ${queuedCount} awaiting retry`
+  });
 }
 
-async function reconcileDownloads() {
+async function resumeCandidate(item, now) {
+  lastAttemptTimestamps.set(item.id, now);
+  if (item.canResume) {
+    try {
+      await chrome.downloads.resume(item.id);
+    } catch (error) {
+      console.warn(`Failed to resume download ${item.id}:`, error);
+    }
+  } else {
+    try {
+      await chrome.downloads.download({
+        url: item.url,
+        conflictAction: 'uniquify'
+      });
+      await chrome.downloads.erase({ id: item.id });
+      lastAttemptTimestamps.delete(item.id);
+    } catch (error) {
+      console.warn(`Failed to restart non-resumable download ${item.id}:`, error);
+    }
+  }
+}
+
+async function reconcileDownloads(forceCooldownBypass = false) {
   if (isReconciling) {
     return;
   }
@@ -69,32 +105,15 @@ async function reconcileDownloads() {
 
     const now = Date.now();
     const readyCandidates = interruptedCandidates.filter(item => {
+      if (forceCooldownBypass) {
+        return true;
+      }
       const lastAttempt = lastAttemptTimestamps.get(item.id) || 0;
       return (now - lastAttempt) >= RESUME_COOLDOWN_MS;
     });
 
     const toResume = readyCandidates.slice(0, capacityNeeded);
-    for (const item of toResume) {
-      lastAttemptTimestamps.set(item.id, now);
-      if (item.canResume) {
-        try {
-          await chrome.downloads.resume(item.id);
-        } catch (error) {
-          console.warn(`Failed to resume download ${item.id}:`, error);
-        }
-      } else {
-        try {
-          await chrome.downloads.download({
-            url: item.url,
-            conflictAction: 'uniquify'
-          });
-          await chrome.downloads.erase({ id: item.id });
-          lastAttemptTimestamps.delete(item.id);
-        } catch (error) {
-          console.warn(`Failed to restart non-resumable download ${item.id}:`, error);
-        }
-      }
-    }
+    await Promise.allSettled(toResume.map(item => resumeCandidate(item, now)));
   } catch (error) {
     console.error('Error during reconciliation loop:', error);
   } finally {
@@ -106,7 +125,18 @@ chrome.downloads.onCreated.addListener(() => {
   reconcileDownloads();
 });
 
-chrome.downloads.onChanged.addListener(delta => {
+chrome.downloads.onChanged.addListener(async (delta) => {
+  if (delta.state && delta.state.current === 'complete') {
+    const settings = await getSettings();
+    if (settings.clearCompletedHistory) {
+      try {
+        await chrome.downloads.erase({ id: delta.id });
+      } catch (error) {
+        console.warn(`Failed to erase download history for item ${delta.id}:`, error);
+      }
+    }
+  }
+
   if (delta.state || delta.error || delta.paused) {
     reconcileDownloads();
   }
@@ -114,6 +144,35 @@ chrome.downloads.onChanged.addListener(delta => {
 
 chrome.downloads.onErased.addListener(downloadId => {
   lastAttemptTimestamps.delete(downloadId);
+});
+
+async function clearAllCompletedHistory() {
+  try {
+    const erasedIds = await chrome.downloads.erase({ state: 'complete' });
+    console.log(`Erased ${erasedIds?.length || 0} completed downloads from history.`);
+  } catch (error) {
+    console.warn('Failed to erase completed downloads history:', error);
+  }
+}
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message && message.type === 'RECONCILE_NOW') {
+    reconcileDownloads(true).then(() => {
+      sendResponse({ success: true });
+    }).catch(error => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  }
+
+  if (message && message.type === 'CLEAR_COMPLETED_NOW') {
+    clearAllCompletedHistory().then(() => {
+      sendResponse({ success: true });
+    }).catch(error => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  }
 });
 
 chrome.alarms.onAlarm.addListener(alarm => {
