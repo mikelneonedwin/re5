@@ -4,7 +4,11 @@ const TARGET_CONCURRENCY = 5;
 const RESUME_COOLDOWN_MS = 5000;
 
 const NETWORK_ERROR_CODES = new Set([
-  'NETWORK_DISCONNECTED'
+  'NETWORK_FAILED',
+  'NETWORK_TIMEOUT',
+  'NETWORK_DISCONNECTED',
+  'NETWORK_SERVER_DOWN',
+  'NETWORK_INVALID_REQUEST'
 ]);
 
 const lastAttemptTimestamps = new Map();
@@ -13,7 +17,6 @@ let isReconciling = false;
 async function getSettings() {
   const data = await chrome.storage.local.get({
     monitoringEnabled: true,
-    sessionStartTime: null,
     targetConcurrency: TARGET_CONCURRENCY
   });
   return data;
@@ -43,12 +46,7 @@ async function reconcileDownloads() {
       return;
     }
 
-    const searchQuery = {};
-    if (settings.sessionStartTime) {
-      searchQuery.startedAfter = settings.sessionStartTime;
-    }
-
-    const allItems = await chrome.downloads.search(searchQuery);
+    const allItems = await chrome.downloads.search({});
 
     const activeItems = allItems.filter(item => item.state === 'in_progress' && !item.paused);
     const interruptedCandidates = allItems

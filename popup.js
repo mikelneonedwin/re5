@@ -5,25 +5,23 @@ const concurrencyTargetEl = document.getElementById('concurrencyTarget');
 const rescueNowBtn = document.getElementById('rescueNowBtn');
 
 const NETWORK_ERROR_CODES = new Set([
-  'NETWORK_DISCONNECTED'
+  'NETWORK_FAILED',
+  'NETWORK_TIMEOUT',
+  'NETWORK_DISCONNECTED',
+  'NETWORK_SERVER_DOWN',
+  'NETWORK_INVALID_REQUEST'
 ]);
 
 async function refreshStats() {
-  const { monitoringEnabled = true, targetConcurrency = 5, sessionStartTime = null } = await chrome.storage.local.get([
+  const { monitoringEnabled = true, targetConcurrency = 5 } = await chrome.storage.local.get([
     'monitoringEnabled',
-    'targetConcurrency',
-    'sessionStartTime'
+    'targetConcurrency'
   ]);
 
   monitorToggle.checked = Boolean(monitoringEnabled);
   concurrencyTargetEl.textContent = String(targetConcurrency);
 
-  const query = {};
-  if (sessionStartTime) {
-    query.startedAfter = sessionStartTime;
-  }
-
-  const items = await chrome.downloads.search(query);
+  const items = await chrome.downloads.search({});
   const activeItems = items.filter(item => item.state === 'in_progress' && !item.paused);
   const interruptedItems = items.filter(item => item.state === 'interrupted' && item.error && NETWORK_ERROR_CODES.has(item.error));
 
@@ -33,11 +31,7 @@ async function refreshStats() {
 
 monitorToggle.addEventListener('change', async (event) => {
   const enabled = event.target.checked;
-  const updates = { monitoringEnabled: enabled };
-  if (enabled) {
-    updates.sessionStartTime = new Date().toISOString();
-  }
-  await chrome.storage.local.set(updates);
+  await chrome.storage.local.set({ monitoringEnabled: enabled });
   await refreshStats();
 });
 
