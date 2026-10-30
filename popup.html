@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Download Manager</title>
+  <style>
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      color: #111827;
+      background-color: #ffffff;
+      box-sizing: border-box;
+    }
+    h2 {
+      margin: 0 0 12px 0;
+      font-size: 16px;
+      font-weight: 600;
+    }
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .toggle-label {
+      font-weight: 500;
+    }
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #cbd5e1;
+      transition: .2s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #2563eb;
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      color: #4b5563;
+    }
+    .stat-value {
+      font-weight: 600;
+      color: #111827;
+    }
+    .note {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 14px;
+      line-height: 1.4;
+    }
+    .button-group {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      background-color: #f9fafb;
+      color: #374151;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    button:hover {
+      background-color: #f3f4f6;
+    }
+  </style>
+</head>
+<body>
+  <h2>Download Rescue Queue</h2>
+
+  <div class="toggle-container">
+    <span class="toggle-label">Monitoring Active</span>
+    <label class="switch">
+      <input type="checkbox" id="monitorToggle">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="stat-row">
+    <span>Active downloads:</span>
+    <span class="stat-value" id="activeCount">0</span>
+  </div>
+
+  <div class="stat-row">
+    <span>Failed / awaiting retry:</span>
+    <span class="stat-value" id="failedCount">0</span>
+  </div>
+
+  <div class="stat-row">
+    <span>Concurrency limit:</span>
+    <span class="stat-value" id="concurrencyTarget">5</span>
+  </div>
+
+  <div class="button-group">
+    <button id="rescueNowBtn">Run Check Now</button>
+  </div>
+
+  <div class="note">
+    When enabled, the extension watches your downloads in real time and automatically resumes up to 5 interrupted downloads in FIFO order whenever active downloads fall below capacity.
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

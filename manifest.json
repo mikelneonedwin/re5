@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Download Rescue & Queue Manager",
+  "version": "1.0.0",
+  "description": "Monitors network-interrupted downloads and automatically rescues them while preserving a target active download threshold.",
+  "permissions": [
+    "downloads",
+    "storage",
+    "alarms"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Download Rescue Manager"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
