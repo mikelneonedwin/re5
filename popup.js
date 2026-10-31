@@ -14,10 +14,12 @@ const NETWORK_ERROR_CODES = new Set([
 ]);
 
 async function refreshStats() {
-  const { monitoringEnabled = true, clearCompletedHistory = false, targetConcurrency = 5 } = await chrome.storage.local.get([
+  const { monitoringEnabled = true, targetConcurrency = 5 } = await chrome.storage.local.get([
     'monitoringEnabled',
-    'clearCompletedHistory',
     'targetConcurrency'
+  ]);
+  const { clearCompletedHistory = false } = await chrome.storage.session.get([
+    'clearCompletedHistory'
   ]);
 
   monitorToggle.checked = Boolean(monitoringEnabled);
@@ -40,7 +42,7 @@ monitorToggle.addEventListener('change', async (event) => {
 
 clearHistoryToggle.addEventListener('change', async (event) => {
   const enabled = event.target.checked;
-  await chrome.storage.local.set({ clearCompletedHistory: enabled });
+  await chrome.storage.session.set({ clearCompletedHistory: enabled });
   if (enabled) {
     try {
       await chrome.runtime.sendMessage({ type: 'CLEAR_COMPLETED_NOW' });

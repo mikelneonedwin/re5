@@ -15,12 +15,17 @@ const lastAttemptTimestamps = new Map();
 let isReconciling = false;
 
 async function getSettings() {
-  const data = await chrome.storage.local.get({
+  const localData = await chrome.storage.local.get({
     monitoringEnabled: true,
-    clearCompletedHistory: false,
     targetConcurrency: TARGET_CONCURRENCY
   });
-  return data;
+  const sessionData = await chrome.storage.session.get({
+    clearCompletedHistory: false
+  });
+  return {
+    ...localData,
+    ...sessionData
+  };
 }
 
 function updateBadge(enabled, activeCount = 0, queuedCount = 0) {
@@ -198,7 +203,7 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === 'local') {
+  if (areaName === 'local' || areaName === 'session') {
     reconcileDownloads();
   }
 });
