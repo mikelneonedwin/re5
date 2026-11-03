@@ -2,6 +2,7 @@ const ALARM_NAME = 'check_downloads_backup';
 const BACKUP_INTERVAL_MINUTES = 40 / 60; // 40 seconds (~0.6667 minutes)
 const TARGET_CONCURRENCY = 5;
 const RESUME_COOLDOWN_MS = 5000;
+const STALL_TIMEOUT_MS = 60000; // 60 seconds without any byte progression while in_progress
 
 const NETWORK_ERROR_CODES = new Set([
   'NETWORK_FAILED',
@@ -12,6 +13,7 @@ const NETWORK_ERROR_CODES = new Set([
 ]);
 
 const lastAttemptTimestamps = new Map();
+const progressTrackers = new Map(); // downloadId -> { bytesReceived, lastProgressTime }
 let isReconciling = false;
 
 async function getSettings() {
@@ -88,8 +90,32 @@ async function reconcileDownloads(forceCooldownBypass = false) {
     }
 
     const allItems = await chrome.downloads.search({});
+    const now = Date.now();
 
-    const activeItems = allItems.filter(item => item.state === 'in_progress' && !item.paused);
+    // Check in-progress items for silent stalling (0 B/s / hung sockets)
+    const inProgressItems = allItems.filter(item => item.state === 'in_progress' && !item.paused);
+    for (const item of inProgressItems) {
+      const tracker = progressTrackers.get(item.id);
+      if (!tracker) {
+        progressTrackers.set(item.id, {
+          bytesReceived: item.bytesReceived,
+          lastProgressTime: now
+        });
+      } else if (item.bytesReceived > tracker.bytesReceived) {
+        tracker.bytesReceived = item.bytesReceived;
+        tracker.lastProgressTime = now;
+      }
+    }
+
+    // Active items are those in_progress and not stalled beyond STALL_TIMEOUT_MS
+    const trulyActiveItems = inProgressItems.filter(item => {
+      const tracker = progressTrackers.get(item.id);
+      if (!tracker) {
+        return true;
+      }
+      return (now - tracker.lastProgressTime) < STALL_TIMEOUT_MS;
+    });
+
     const interruptedCandidates = allItems
       .filter(item => {
         if (item.state !== 'interrupted') {
@@ -99,16 +125,15 @@ async function reconcileDownloads(forceCooldownBypass = false) {
       })
       .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-    updateBadge(true, activeItems.length, interruptedCandidates.length);
+    updateBadge(true, trulyActiveItems.length, interruptedCandidates.length);
 
-    let activeCount = activeItems.length;
+    let activeCount = trulyActiveItems.length;
     const capacityNeeded = (settings.targetConcurrency || TARGET_CONCURRENCY) - activeCount;
 
     if (capacityNeeded <= 0) {
       return;
     }
 
-    const now = Date.now();
     const readyCandidates = interruptedCandidates.filter(item => {
       if (forceCooldownBypass) {
         return true;
@@ -132,6 +157,7 @@ chrome.downloads.onCreated.addListener(() => {
 
 chrome.downloads.onChanged.addListener(async (delta) => {
   if (delta.state && delta.state.current === 'complete') {
+    progressTrackers.delete(delta.id);
     const settings = await getSettings();
     if (settings.clearCompletedHistory) {
       try {
@@ -142,6 +168,10 @@ chrome.downloads.onChanged.addListener(async (delta) => {
     }
   }
 
+  if (delta.state && delta.state.current === 'interrupted') {
+    progressTrackers.delete(delta.id);
+  }
+
   if (delta.state || delta.error || delta.paused) {
     reconcileDownloads();
   }
@@ -149,6 +179,7 @@ chrome.downloads.onChanged.addListener(async (delta) => {
 
 chrome.downloads.onErased.addListener(downloadId => {
   lastAttemptTimestamps.delete(downloadId);
+  progressTrackers.delete(downloadId);
 });
 
 async function clearAllCompletedHistory() {
